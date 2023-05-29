@@ -20,22 +20,25 @@ app.use(function (req, res, next) {
   next();
 });
 
-app.get("/", (req, res) => {
+app.get("/", (_, res) => {
   res.send("index");
 });
 
 app.post("/", async (req, res) => {
-  let type = req.body.type;
-  if (type === "forex") {
-    let token = req.body.token;
-    let accountId = req.body.accountId;
-    const accountData = await getMetaApiAccountData(token, accountId);
-    res.json({ _result: "1", accountData });
-  } else if (type === "crypto") {
-    res.json({ _result: "1" });
-  } else {
-    res.json({});
-  }
+  try {
+    let type = req.body.type;
+    if (type === "forex") {
+      let token = req.body.token;
+      let accountId = req.body.accountId;
+      const accountData = await getMetaApiAccountData(token, accountId);
+      res.json({ _result: "1", accountData });
+      return;
+    } else if (type === "crypto") {
+      res.json({ _result: "1" });
+      return;
+    }
+  } catch {}
+  res.json({ _result: "0" });
 });
 
 app.listen(port, () => {
@@ -52,16 +55,14 @@ async function getMetaApiAccountData(token, accountId) {
       await account.deploy();
     }
     await account.waitConnected();
-    let connection = account.getRPCConnection();
+    let connection = account.getStreamingConnection();
     await connection.connect();
     await connection.waitSynchronized();
+    const historyStorage = connection.historyStorage;
     const result = {
-      accountInformation: await connection.getAccountInformation(),
-      positions: await connection.getPositions(),
-      deals: await connection.getDealsByTimeRange(
-        new Date(Date.now() - 90 * 24 * 60 * 60 * 1000),
-        new Date()
-      ),
+      accountInformation: connection.accountInformation,
+      positions: connection.positions,
+      deals: historyStorage.deals,
     };
     if (!deployedStates.includes(initialState)) {
       await connection.close();
